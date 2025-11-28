@@ -1,0 +1,88 @@
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark Theme (Default) - Redesigned for Better Visibility */
+:root[data-theme='dark'],
+:root {
+  --bg-gradient-start: #1a1a2e;
+  --bg-gradient-end: #16213e;
+  --glass-bg: rgba(30, 30, 50, 0.85);
+  --glass-bg-hover: rgba(40, 40, 60, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glass-border-hover: rgba(255, 255, 255, 0.25);
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-tertiary: #b0b0b0;
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --shadow-color-hover: rgba(0, 0, 0, 0.5);
+  --user-message-bg-start: #667eea;
+  --user-message-bg-end: #764ba2;
+  --user-message-shadow: rgba(102, 126, 234, 0.5);
+  --input-bg: rgba(40, 40, 60, 0.9);
+  --input-bg-focus: rgba(50, 50, 70, 0.95);
+  --button-bg-start: #667eea;
+  --button-bg-end: #764ba2;
+  --button-shadow: rgba(102, 126, 234, 0.4);
+  --listening-bg: #ff4444;
+  --listening-shadow: rgba(255, 68, 68, 0.6);
+  --suggestion-bg: rgba(50, 50, 70, 0.7);
+  --suggestion-border: rgba(255, 255, 255, 0.1);
+}
+
+/* Light Theme */
+:root[data-theme='light'] {
+  --bg-gradient-start: #e0e7ff;
+  --bg-gradient-end: #ddd6fe;
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-bg-hover: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-border-hover: rgba(102, 126, 234, 0.3);
+  --text-primary: rgba(30, 30, 30, 0.95);
+  --text-secondary: rgba(50, 50, 50, 0.85);
+  --text-tertiary: rgba(70, 70, 70, 0.7);
+  --shadow-color: rgba(102, 126, 234, 0.1);
+  --shadow-color-hover: rgba(102, 126, 234, 0.2);
+  --user-message-bg-start: rgba(102, 126, 234, 0.9);
+  --user-message-bg-end: rgba(118, 75, 162, 0.9);
+  --user-message-shadow: rgba(102, 126, 234, 0.25);
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-bg-focus: rgba(255, 255, 255, 1);
+  --button-bg-start: rgba(102, 126, 234, 0.9);
+  --button-bg-end: rgba(118, 75, 162, 0.9);
+  --button-shadow: rgba(102, 126, 234, 0.25);
+  --listening-bg: rgba(255, 68, 68, 0.9);
+  --listening-shadow: rgba(255, 68, 68, 0.3);
+}
+
+body {
+  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+  min-height: 100vh;
+  padding: 20px;
+  transition: background 0.3s ease;
+}
+
+@media (min-width: 1400px) {
+  body {
+    padding: 30px;
+  }
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
