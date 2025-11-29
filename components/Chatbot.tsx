@@ -100,7 +100,7 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
     }
   }
 
-  // Extract city name from user message - works for any city worldwide
+  // Extract city name from user message - works for any city worldwide (Japanese & English)
   const extractCityFromMessage = (message: string): string | null => {
     // Japanese city name mapping (for backward compatibility)
     const japaneseCityMap: Record<string, string> = {
@@ -116,66 +116,127 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
       '広島': 'Hiroshima'
     }
     
-    // First check for Japanese city names
+    // First check for known Japanese city names
     for (const [japaneseName, englishName] of Object.entries(japaneseCityMap)) {
       if (message.includes(japaneseName)) {
         return englishName
       }
     }
     
-    // Words to skip (not cities)
+    // Words to skip (not cities) - both English and Japanese
     const skipWords = new Set([
       'what', 'how', 'tell', 'give', 'show', 'current', 'today', 'tomorrow', 
       'weather', 'temperature', 'humidity', 'wind', 'the', 'this', 'that',
       'is', 'are', 'was', 'will', 'can', 'should', 'would', 'could',
-      'please', 'thanks', 'thank', 'you', 'me', 'my', 'your', 'our'
+      'please', 'thanks', 'thank', 'you', 'me', 'my', 'your', 'our',
+      '天気', '気温', '湿度', '風', '今日', '明日', '現在', 'の', 'は', 'を', 'が'
     ])
     
-    // Common patterns to extract city names (works for any city)
-    const patterns = [
-      // "in [City]" or "in [City], [Country]" - most common pattern
-      /(?:in|at|for|の|で)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*(?:\s*,\s*[A-Z][a-zA-Z]+)?)/,
-      // "[City] weather" or "[City]の天気"
-      /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s*(?:の天気|weather|の|で)/,
-      // "[City], [Country]" pattern
-      /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*),\s*[A-Z][a-zA-Z]+/,
-      // "weather in [City]" pattern
-      /weather\s+(?:in|at|for)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)/i
+    // Patterns for Japanese queries
+    const japanesePatterns = [
+      // "[City]の天気" or "[City]で" - Japanese city name before の or で
+      /([^\sので、。！？\n]+?)(?:の天気|の|で|の気温|の湿度)/,
+      // "天気[City]" or "天気は[City]"
+      /(?:天気|気温|湿度)(?:は|が|を)?([^\s、。！？\n]+?)(?:の|で|は|が|を|$)/,
+      // "[City]について" or "[City]に関して"
+      /([^\sについてに関して、。！？\n]+?)(?:について|に関して)/
     ]
     
-    // Try each pattern
-    for (const pattern of patterns) {
+    // Try Japanese patterns first
+    for (const pattern of japanesePatterns) {
       const match = message.match(pattern)
       if (match && match[1]) {
         let potentialCity = match[1].trim()
         
-        // Remove country code if present (we'll let geocoding API handle it)
+        // Skip if it's a skip word
+        if (skipWords.has(potentialCity) || skipWords.has(potentialCity.toLowerCase())) {
+          continue
+        }
+        
+        // Skip if too short
+        if (potentialCity.length < 2) {
+          continue
+        }
+        
+        // If it's Japanese characters, return as-is (geocoding API can handle it)
+        // If it's English, capitalize properly
+        if (/^[A-Za-z\s]+$/.test(potentialCity)) {
+          potentialCity = potentialCity.split(/\s+/).map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          ).join(' ')
+        }
+        
+        return potentialCity
+      }
+    }
+    
+    // Patterns for English queries (case insensitive)
+    const englishPatterns = [
+      // "in [City]" or "in [City], [Country]"
+      /(?:in|at|for)\s+([A-Za-z][a-zA-Z\s]+?)(?:\s*,|\s+weather|$)/i,
+      // "[City] weather" or "[City]'s weather"
+      /([A-Za-z][a-zA-Z\s]+?)\s*(?:weather|'s\s+weather)/i,
+      // "[City], [Country]"
+      /([A-Za-z][a-zA-Z\s]+?),\s*[A-Za-z][a-zA-Z]+/i,
+      // "weather in [City]"
+      /weather\s+(?:in|at|for)\s+([A-Za-z][a-zA-Z\s]+?)(?:\s*,|$)/i,
+      // "what's the weather in [City]"
+      /(?:what|how|tell|show).*?(?:weather|temperature).*?(?:in|at|for)\s+([A-Za-z][a-zA-Z\s]+?)(?:\s*,|$)/i
+    ]
+    
+    // Try English patterns
+    for (const pattern of englishPatterns) {
+      const match = message.match(pattern)
+      if (match && match[1]) {
+        let potentialCity = match[1].trim()
+        
+        // Remove country code if present
         potentialCity = potentialCity.split(',')[0].trim()
+        
+        // Capitalize properly
+        potentialCity = potentialCity.split(/\s+/).map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        ).join(' ')
         
         // Skip if it's a common word
         if (skipWords.has(potentialCity.toLowerCase())) {
           continue
         }
         
-        // Skip if it's too short (likely not a city)
+        // Skip if too short
         if (potentialCity.length < 2) {
           continue
         }
         
-        // Skip if it contains numbers
-        if (/\d/.test(potentialCity)) {
+        // Skip if contains numbers
+        if (/\d/.test(potentialCity) && !/^[IVXLCDM]+$/.test(potentialCity)) {
           continue
         }
         
-        // Skip single common words
-        if (potentialCity.split(/\s+/).length === 1 && potentialCity.length < 4) {
-          // Allow short city names like "NYC", "LA", etc.
-          if (!/^[A-Z]{2,4}$/.test(potentialCity)) {
-            continue
-          }
+        return potentialCity
+      }
+    }
+    
+    // Fallback: Extract any capitalized word sequence (for mixed language)
+    const fallbackPattern = /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)|([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/g
+    const matches = Array.from(message.matchAll(fallbackPattern))
+    
+    for (const match of matches) {
+      const potentialCity = (match[1] || match[2] || '').trim()
+      
+      if (potentialCity && 
+          potentialCity.length >= 2 && 
+          !skipWords.has(potentialCity.toLowerCase()) &&
+          !skipWords.has(potentialCity)) {
+        
+        // Capitalize if English
+        if (/^[A-Za-z\s]+$/.test(potentialCity)) {
+          return potentialCity.split(/\s+/).map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          ).join(' ')
         }
         
-        // Return the potential city name (let the geocoding API validate it)
+        // Return as-is if Japanese/other scripts
         return potentialCity
       }
     }

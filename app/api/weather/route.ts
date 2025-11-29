@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
       const cleanCityName = cityName.trim().replace(/\s+/g, ' ')
       
       // First, get coordinates from city name using geocoding API
-      // OpenWeatherMap geocoding API supports city names worldwide
+      // OpenWeatherMap geocoding API supports city names worldwide (English, Japanese, etc.)
+      // URL encode the city name to handle Japanese characters and special characters
       const geocodeUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(cleanCityName)}&limit=5&appid=${apiKey}`
       
       const geocodeResponse = await fetch(geocodeUrl)
