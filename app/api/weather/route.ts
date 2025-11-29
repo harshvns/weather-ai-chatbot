@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
+  let location: string | undefined
   try {
-    const { location } = await request.json()
+    const body = await request.json()
+    location = typeof body.location === 'string' ? body.location : undefined
     
     // Use OpenWeatherMap API (free tier)
     const apiKey = process.env.OPENWEATHER_API_KEY || 'demo_key'
     
     // If no API key is set, return mock data for demo purposes
     if (apiKey === 'demo_key' || apiKey === 'your_openweather_api_key_here') {
-      const mockLocation = location && !location.includes(',') ? location : 'Tokyo'
+      const mockLocation = location && typeof location === 'string' && !location.includes(',') ? location : 'Tokyo'
       return NextResponse.json({
         location: `${mockLocation}, Japan`,
         temperature: 22,
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
     let locationName: string
 
     // Check if location is coordinates (lat,lon) or city name
-    if (location && location.includes(',')) {
+    if (location && typeof location === 'string' && location.includes(',')) {
       // It's coordinates
       const [lat, lon] = location.split(',')
       if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lon))) {
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Weather API error:', error)
     // Return mock data on error with location name if provided
-    const errorLocation = location && !location.includes(',') ? location : 'Tokyo'
+    const errorLocation = location && typeof location === 'string' && !location.includes(',') ? location : 'Tokyo'
     return NextResponse.json({
       location: `${errorLocation}, Japan`,
       temperature: 22,
