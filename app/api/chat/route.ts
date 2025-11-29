@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   try {
     const { userMessage, weatherData, theme } = await request.json()
 
-    const apiKey = process.env.GEMINI_API_KEY
+    const apiKey = "AIzaSyD0axki9YcjsfYOOYEnaN2C7P6EFlxf2eY"
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY is not set')
     }
