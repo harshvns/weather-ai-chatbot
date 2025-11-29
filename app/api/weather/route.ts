@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
+  let cityName: string | null = null
+  
   try {
-    const { location, cityName } = await request.json()
+    const requestData = await request.json()
+    const { location } = requestData
+    cityName = requestData.cityName || null
     
     const apiKey = process.env.OPENWEATHER_API_KEY || 'demo_key'
     
