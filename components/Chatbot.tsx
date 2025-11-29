@@ -172,16 +172,18 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
     
     // Patterns for English queries (case insensitive)
     const englishPatterns = [
-      // "in [City]" or "in [City], [Country]"
-      /(?:in|at|for)\s+([A-Za-z][a-zA-Z\s]+?)(?:\s*,|\s+weather|$)/i,
+      // "in [City]" or "in [City], [Country]" - more specific
+      /(?:^|\s)(?:in|at|for)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*(?:\s*,\s*[A-Z][a-zA-Z]+)?)/,
       // "[City] weather" or "[City]'s weather"
-      /([A-Za-z][a-zA-Z\s]+?)\s*(?:weather|'s\s+weather)/i,
+      /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s*(?:weather|'s\s+weather|の天気)/i,
       // "[City], [Country]"
-      /([A-Za-z][a-zA-Z\s]+?),\s*[A-Za-z][a-zA-Z]+/i,
+      /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*),\s*[A-Z][a-zA-Z]+/,
       // "weather in [City]"
-      /weather\s+(?:in|at|for)\s+([A-Za-z][a-zA-Z\s]+?)(?:\s*,|$)/i,
-      // "what's the weather in [City]"
-      /(?:what|how|tell|show).*?(?:weather|temperature).*?(?:in|at|for)\s+([A-Za-z][a-zA-Z\s]+?)(?:\s*,|$)/i
+      /weather\s+(?:in|at|for)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)/i,
+      // "what's the weather in [City]" or similar questions
+      /(?:what|how|tell|show|give).*?(?:weather|temperature|天気).*?(?:in|at|for)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)/i,
+      // Standalone city name at start or after punctuation
+      /(?:^|[\s,。、])([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]+)*)(?:\s*(?:の|で|weather|天気|,|$))/i
     ]
     
     // Try English patterns
@@ -193,18 +195,23 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
         // Remove country code if present
         potentialCity = potentialCity.split(',')[0].trim()
         
-        // Capitalize properly
-        potentialCity = potentialCity.split(/\s+/).map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-        ).join(' ')
+        // Ensure proper capitalization (first letter uppercase, rest lowercase)
+        potentialCity = potentialCity.split(/\s+/).map(word => {
+          if (word.length === 0) return word
+          // Handle special cases like "New York", "Los Angeles"
+          if (word.length > 1) {
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          }
+          return word.toUpperCase()
+        }).join(' ')
         
         // Skip if it's a common word
         if (skipWords.has(potentialCity.toLowerCase())) {
           continue
         }
         
-        // Skip if too short
-        if (potentialCity.length < 2) {
+        // Skip if too short (minimum 3 characters for city names)
+        if (potentialCity.length < 3) {
           continue
         }
         
@@ -213,27 +220,38 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
           continue
         }
         
+        // Validate: should start with uppercase letter
+        if (!/^[A-Z]/.test(potentialCity)) {
+          continue
+        }
+        
         return potentialCity
       }
     }
     
     // Fallback: Extract any capitalized word sequence (for mixed language)
-    const fallbackPattern = /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)|([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/g
+    // Look for words that start with uppercase and are at least 3 characters
+    const fallbackPattern = /(?:^|\s)([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]+)*)|([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]{2,})/g
     const matches = Array.from(message.matchAll(fallbackPattern))
     
     for (const match of matches) {
       const potentialCity = (match[1] || match[2] || '').trim()
       
       if (potentialCity && 
-          potentialCity.length >= 2 && 
+          potentialCity.length >= 3 && 
           !skipWords.has(potentialCity.toLowerCase()) &&
           !skipWords.has(potentialCity)) {
         
         // Capitalize if English
         if (/^[A-Za-z\s]+$/.test(potentialCity)) {
-          return potentialCity.split(/\s+/).map(word => 
+          const capitalized = potentialCity.split(/\s+/).map(word => 
             word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
           ).join(' ')
+          
+          // Validate it starts with uppercase
+          if (/^[A-Z]/.test(capitalized)) {
+            return capitalized
+          }
         }
         
         // Return as-is if Japanese/other scripts
@@ -259,14 +277,23 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
     try {
       // Extract city name from message, or use default location
       const extractedCity = extractCityFromMessage(text)
-      const cityToUse = extractedCity || null
+      
+      // Validate extracted city name (should be at least 3 characters and start with letter)
+      const cityToUse = extractedCity && extractedCity.length >= 3 && /^[A-Za-z\u0080-\uFFFF]/.test(extractedCity) 
+        ? extractedCity 
+        : null
+      
+      // Log for debugging
+      if (extractedCity && !cityToUse) {
+        console.log('Invalid city name extracted:', extractedCity)
+      }
       
       // Get weather data
       const weatherResponse = await fetch('/api/weather', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          location: extractedCity ? null : location, // Use coordinates only if no city extracted
+          location: cityToUse ? null : location, // Use coordinates only if no valid city extracted
           cityName: cityToUse 
         }),
       })
