@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
-  let location: string | undefined
   try {
-    const body = await request.json()
-    location = typeof body.location === 'string' ? body.location : undefined
+    const { location, cityName } = await request.json()
     
-    // Use OpenWeatherMap API (free tier)
     const apiKey = process.env.OPENWEATHER_API_KEY || 'demo_key'
     
     // If no API key is set, return mock data for demo purposes
     if (apiKey === 'demo_key' || apiKey === 'your_openweather_api_key_here') {
-      const mockLocation = location && typeof location === 'string' && !location.includes(',') ? location : 'Tokyo'
+      const mockLocation = cityName || 'Tokyo, Japan'
       return NextResponse.json({
-        location: `${mockLocation}, Japan`,
+        location: mockLocation,
         temperature: 22,
         description: '晴れ',
         humidity: 65,
@@ -23,52 +20,41 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    let url: string
-    let locationName: string
+    let weatherUrl: string
 
-    // Check if location is coordinates (lat,lon) or city name
-    if (location && typeof location === 'string' && location.includes(',')) {
-      // It's coordinates
-      const [lat, lon] = location.split(',')
-      if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lon))) {
-        throw new Error('Invalid coordinates')
+    // If city name is provided, use geocoding API first, then weather API
+    if (cityName) {
+      // First, get coordinates from city name using geocoding API
+      const geocodeUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(cityName)}&limit=1&appid=${apiKey}`
+      
+      const geocodeResponse = await fetch(geocodeUrl)
+      
+      if (!geocodeResponse.ok) {
+        throw new Error('Geocoding API request failed')
       }
-      url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat.trim()}&lon=${lon.trim()}&appid=${apiKey}&units=metric&lang=ja`
-      locationName = `${lat},${lon}`
+
+      const geocodeData = await geocodeResponse.json()
+      
+      if (!geocodeData || geocodeData.length === 0) {
+        // If city not found, fall back to coordinates or default
+        const coords = location || '35.6762,139.6503'
+        const [lat, lon] = coords.split(',')
+        weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=ja`
+      } else {
+        const { lat, lon } = geocodeData[0]
+        weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=ja`
+      }
     } else {
-      // It's a city name
-      const cityName = location || 'Tokyo'
-      url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(cityName)}&appid=${apiKey}&units=metric&lang=ja`
-      locationName = cityName
+      // Use coordinates directly
+      const coords = location || '35.6762,139.6503'
+      const [lat, lon] = coords.split(',')
+      weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=ja`
     }
     
-    const response = await fetch(url, {
-      next: { revalidate: 300 } // Cache for 5 minutes
-    })
+    const response = await fetch(weatherUrl)
     
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      console.error('Weather API error:', response.status, errorData)
-      
-      // If city not found, try with coordinates (Tokyo as fallback)
-      if (response.status === 404 && !locationName.includes(',')) {
-        const fallbackUrl = `https://api.openweathermap.org/data/2.5/weather?lat=35.6762&lon=139.6503&appid=${apiKey}&units=metric&lang=ja`
-        const fallbackResponse = await fetch(fallbackUrl)
-        if (fallbackResponse.ok) {
-          const fallbackData = await fallbackResponse.json()
-          return NextResponse.json({
-            location: `${fallbackData.name}, ${fallbackData.sys.country}`,
-            temperature: Math.round(fallbackData.main.temp),
-            description: fallbackData.weather[0].description,
-            humidity: fallbackData.main.humidity,
-            windSpeed: fallbackData.wind.speed,
-            icon: fallbackData.weather[0].icon,
-            mock: false,
-          })
-        }
-      }
-      
-      throw new Error(`Weather API request failed: ${response.status}`)
+      throw new Error('Weather API request failed')
     }
 
     const data = await response.json()
@@ -84,10 +70,10 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('Weather API error:', error)
-    // Return mock data on error with location name if provided
-    const errorLocation = location && typeof location === 'string' && !location.includes(',') ? location : 'Tokyo'
+    // Return mock data on error
+    const fallbackLocation = cityName || 'Tokyo, Japan'
     return NextResponse.json({
-      location: `${errorLocation}, Japan`,
+      location: fallbackLocation,
       temperature: 22,
       description: '晴れ',
       humidity: 65,

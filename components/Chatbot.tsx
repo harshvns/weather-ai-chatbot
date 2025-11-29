@@ -36,10 +36,7 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
   }, [messages])
 
   useEffect(() => {
-    // Set default location immediately
-    setLocation('35.6762,139.6503') // Tokyo as default
-    
-    // Try to get user's location
+    // Get user's location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -47,13 +44,13 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
         },
         (error) => {
           console.error('Error getting location:', error)
-          // Keep default Tokyo location
-        },
-        {
-          timeout: 5000,
-          enableHighAccuracy: false
+          // Default to Tokyo if location access is denied
+          setLocation('35.6762,139.6503')
         }
       )
+    } else {
+      // Default to Tokyo if geolocation is not supported
+      setLocation('35.6762,139.6503')
     }
   }, [])
 
@@ -103,6 +100,62 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
     }
   }
 
+  // Extract city name from user message
+  const extractCityFromMessage = (message: string): string | null => {
+    // City mapping: Japanese name -> English name
+    const cityMap: Record<string, string> = {
+      '東京': 'Tokyo',
+      '大阪': 'Osaka',
+      '京都': 'Kyoto',
+      '横浜': 'Yokohama',
+      '名古屋': 'Nagoya',
+      '福岡': 'Fukuoka',
+      '札幌': 'Sapporo',
+      '神戸': 'Kobe',
+      '仙台': 'Sendai',
+      '広島': 'Hiroshima',
+      'Tokyo': 'Tokyo',
+      'Osaka': 'Osaka',
+      'Kyoto': 'Kyoto',
+      'Yokohama': 'Yokohama',
+      'Nagoya': 'Nagoya',
+      'Fukuoka': 'Fukuoka',
+      'Sapporo': 'Sapporo',
+      'Kobe': 'Kobe',
+      'Sendai': 'Sendai',
+      'Hiroshima': 'Hiroshima'
+    }
+    
+    const lowerMessage = message.toLowerCase()
+    
+    // Check for city names (both Japanese and English)
+    for (const [cityName, englishName] of Object.entries(cityMap)) {
+      // Check if city name appears in the message
+      if (message.includes(cityName) || lowerMessage.includes(cityName.toLowerCase())) {
+        return englishName
+      }
+    }
+    
+    // Also check for patterns like "in [city]" or "[city]の天気"
+    const patterns = [
+      /(?:in|at|for|の|で)\s*([A-Z][a-z]+)/i,
+      /([A-Z][a-z]+)\s*(?:の|で|の天気|weather)/i,
+      /([A-Z][a-z]+),?\s*(?:Japan|JP)/i
+    ]
+    
+    for (const pattern of patterns) {
+      const match = message.match(pattern)
+      if (match && match[1]) {
+        const potentialCity = match[1]
+        if (cityMap[potentialCity]) {
+          return cityMap[potentialCity]
+        }
+      }
+    }
+    
+    return null
+  }
+
   const handleUserMessage = async (text: string) => {
     if (!text.trim()) return
 
@@ -116,14 +169,18 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
     setIsProcessing(true)
 
     try {
-      // Extract location from user message if mentioned, otherwise use current location
-      const locationToUse = extractLocationFromMessage(text) || location || '35.6762,139.6503'
+      // Extract city name from message, or use default location
+      const extractedCity = extractCityFromMessage(text)
+      const cityToUse = extractedCity || null
       
       // Get weather data
       const weatherResponse = await fetch('/api/weather', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location: locationToUse }),
+        body: JSON.stringify({ 
+          location: extractedCity ? null : location, // Use coordinates only if no city extracted
+          cityName: cityToUse 
+        }),
       })
 
       const weatherData = await weatherResponse.json()
@@ -170,50 +227,6 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
       handleUserMessage(input.value)
       input.value = ''
     }
-  }
-
-  const extractLocationFromMessage = (message: string): string | null => {
-    // Common Japanese city names
-    const cityMap: Record<string, string> = {
-      '東京': 'Tokyo',
-      'とうきょう': 'Tokyo',
-      'tokyo': 'Tokyo',
-      '大阪': 'Osaka',
-      'おおさか': 'Osaka',
-      'osaka': 'Osaka',
-      '京都': 'Kyoto',
-      'きょうと': 'Kyoto',
-      'kyoto': 'Kyoto',
-      '横浜': 'Yokohama',
-      'よこはま': 'Yokohama',
-      'yokohama': 'Yokohama',
-      '名古屋': 'Nagoya',
-      'なごや': 'Nagoya',
-      'nagoya': 'Nagoya',
-      '福岡': 'Fukuoka',
-      'ふくおか': 'fukuoka',
-      'fukuoka': 'Fukuoka',
-      '札幌': 'Sapporo',
-      'さっぽろ': 'Sapporo',
-      'sapporo': 'Sapporo',
-      '仙台': 'Sendai',
-      'せんだい': 'Sendai',
-      'sendai': 'Sendai',
-      '広島': 'Hiroshima',
-      'ひろしま': 'Hiroshima',
-      'hiroshima': 'Hiroshima',
-    }
-
-    const lowerMessage = message.toLowerCase()
-    
-    // Check for city names in the message
-    for (const [key, city] of Object.entries(cityMap)) {
-      if (lowerMessage.includes(key.toLowerCase()) || message.includes(key)) {
-        return city
-      }
-    }
-
-    return null
   }
 
   const formatMarkdown = (text: string): string => {

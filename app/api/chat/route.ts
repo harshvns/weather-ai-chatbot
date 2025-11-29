@@ -22,9 +22,42 @@ export async function POST(request: NextRequest) {
   try {
     const { userMessage, weatherData, theme } = await request.json()
 
-    const apiKey = "AIzaSyD0axki9YcjsfYOOYEnaN2C7P6EFlxf2eY"
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is not set')
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+      console.error('GEMINI_API_KEY is not set or is placeholder')
+      return NextResponse.json(
+        { 
+          error: 'API key not configured', 
+          details: 'Please set GEMINI_API_KEY in your .env file',
+          response: {
+            title: '設定エラー',
+            summary: 'APIキーが設定されていません',
+            mainContent: '申し訳ございませんが、APIキーが正しく設定されていません。.envファイルにGEMINI_API_KEYを設定してください。',
+            suggestions: [],
+            formattedText: '**設定エラー**\n\nAPIキーが正しく設定されていません。.envファイルにGEMINI_API_KEYを設定してください。'
+          }
+        },
+        { status: 500 }
+      )
+    }
+
+    // Validate API key format (should start with AIza)
+    if (!apiKey.startsWith('AIza')) {
+      console.error('Invalid API key format')
+      return NextResponse.json(
+        { 
+          error: 'Invalid API key format',
+          details: 'API key should start with AIza',
+          response: {
+            title: 'APIキーエラー',
+            summary: 'APIキーの形式が正しくありません',
+            mainContent: 'APIキーの形式が正しくありません。正しいAPIキーを設定してください。',
+            suggestions: [],
+            formattedText: '**APIキーエラー**\n\nAPIキーの形式が正しくありません。正しいAPIキーを設定してください。'
+          }
+        },
+        { status: 500 }
+      )
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
@@ -42,6 +75,8 @@ export async function POST(request: NextRequest) {
 - 湿度: ${weatherData.humidity}%
 - 風速: ${weatherData.windSpeed} m/s
 ${weatherData.mock ? '(注: これはモックデータです)' : ''}
+
+**重要**: ユーザーが特定の場所について質問している場合は、その場所の天気情報を提供してください。質問に場所が含まれていない場合は、上記の天気情報を使用してください。
 `
 
     const prompt = `
@@ -107,10 +142,43 @@ JSON形式で返答してください。
       response: structuredResponse,
       raw: text 
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Chat API error:', error)
+    
+    // Handle specific API key errors
+    if (error?.message?.includes('API Key') || error?.message?.includes('API_KEY_INVALID')) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid API key',
+          details: 'The Gemini API key is invalid or expired. Please check your .env file.',
+          response: {
+            title: 'APIキーエラー',
+            summary: 'APIキーが無効または期限切れです',
+            mainContent: '申し訳ございませんが、APIキーが無効または期限切れのようです。.envファイルのGEMINI_API_KEYを確認し、有効なAPIキーを設定してください。\n\n新しいAPIキーは https://makersuite.google.com/app/apikey で取得できます。',
+            suggestions: [
+              '.envファイルを確認してください',
+              '新しいAPIキーを取得してください',
+              'サーバーを再起動してください'
+            ],
+            formattedText: '**APIキーエラー**\n\nAPIキーが無効または期限切れのようです。.envファイルのGEMINI_API_KEYを確認し、有効なAPIキーを設定してください。\n\n新しいAPIキーは [Google AI Studio](https://makersuite.google.com/app/apikey) で取得できます。'
+          }
+        },
+        { status: 401 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to generate response', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Failed to generate response', 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        response: {
+          title: 'エラー',
+          summary: '応答の生成に失敗しました',
+          mainContent: '申し訳ございませんが、応答を生成できませんでした。もう一度お試しください。',
+          suggestions: [],
+          formattedText: '**エラー**\n\n応答の生成に失敗しました。もう一度お試しください。'
+        }
+      },
       { status: 500 }
     )
   }
