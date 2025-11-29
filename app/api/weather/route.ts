@@ -24,12 +24,16 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    let weatherUrl: string
+    let weatherUrl: string | null = null
 
     // If city name is provided, use geocoding API first, then weather API
     if (cityName) {
+      // Clean the city name (remove extra whitespace, handle common variations)
+      const cleanCityName = cityName.trim().replace(/\s+/g, ' ')
+      
       // First, get coordinates from city name using geocoding API
-      const geocodeUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(cityName)}&limit=1&appid=${apiKey}`
+      // OpenWeatherMap geocoding API supports city names worldwide
+      const geocodeUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(cleanCityName)}&limit=5&appid=${apiKey}`
       
       const geocodeResponse = await fetch(geocodeUrl)
       
@@ -40,16 +44,44 @@ export async function POST(request: NextRequest) {
       const geocodeData = await geocodeResponse.json()
       
       if (!geocodeData || geocodeData.length === 0) {
-        // If city not found, fall back to coordinates or default
-        const coords = location || '35.6762,139.6503'
-        const [lat, lon] = coords.split(',')
-        weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=ja`
+        // If city not found, try with country code variations
+        // Try common country codes if city name doesn't include one
+        const countryVariations = ['', ',US', ',UK', ',JP', ',CA', ',AU', ',FR', ',DE', ',IT', ',ES']
+        
+        for (const country of countryVariations) {
+          const tryUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(cleanCityName + country)}&limit=1&appid=${apiKey}`
+          const tryResponse = await fetch(tryUrl)
+          
+          if (tryResponse.ok) {
+            const tryData = await tryResponse.json()
+            if (tryData && tryData.length > 0) {
+              const { lat, lon } = tryData[0]
+              weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=ja`
+              break
+            }
+          }
+        }
+        
+        // If still not found, fall back to coordinates or default
+        if (!weatherUrl) {
+          const coords = location || '35.6762,139.6503'
+          const [lat, lon] = coords.split(',')
+          weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=ja`
+        }
       } else {
+        // Use the first (most relevant) result
         const { lat, lon } = geocodeData[0]
         weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=ja`
       }
     } else {
       // Use coordinates directly
+      const coords = location || '35.6762,139.6503'
+      const [lat, lon] = coords.split(',')
+      weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=ja`
+    }
+    
+    // Ensure weatherUrl is set
+    if (!weatherUrl) {
       const coords = location || '35.6762,139.6503'
       const [lat, lon] = coords.split(',')
       weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=ja`

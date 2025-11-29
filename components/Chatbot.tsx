@@ -100,10 +100,10 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
     }
   }
 
-  // Extract city name from user message
+  // Extract city name from user message - works for any city worldwide
   const extractCityFromMessage = (message: string): string | null => {
-    // City mapping: Japanese name -> English name
-    const cityMap: Record<string, string> = {
+    // Japanese city name mapping (for backward compatibility)
+    const japaneseCityMap: Record<string, string> = {
       '東京': 'Tokyo',
       '大阪': 'Osaka',
       '京都': 'Kyoto',
@@ -113,43 +113,70 @@ export default function Chatbot({ selectedTheme }: ChatbotProps) {
       '札幌': 'Sapporo',
       '神戸': 'Kobe',
       '仙台': 'Sendai',
-      '広島': 'Hiroshima',
-      'Tokyo': 'Tokyo',
-      'Osaka': 'Osaka',
-      'Kyoto': 'Kyoto',
-      'Yokohama': 'Yokohama',
-      'Nagoya': 'Nagoya',
-      'Fukuoka': 'Fukuoka',
-      'Sapporo': 'Sapporo',
-      'Kobe': 'Kobe',
-      'Sendai': 'Sendai',
-      'Hiroshima': 'Hiroshima'
+      '広島': 'Hiroshima'
     }
     
-    const lowerMessage = message.toLowerCase()
-    
-    // Check for city names (both Japanese and English)
-    for (const [cityName, englishName] of Object.entries(cityMap)) {
-      // Check if city name appears in the message
-      if (message.includes(cityName) || lowerMessage.includes(cityName.toLowerCase())) {
+    // First check for Japanese city names
+    for (const [japaneseName, englishName] of Object.entries(japaneseCityMap)) {
+      if (message.includes(japaneseName)) {
         return englishName
       }
     }
     
-    // Also check for patterns like "in [city]" or "[city]の天気"
+    // Words to skip (not cities)
+    const skipWords = new Set([
+      'what', 'how', 'tell', 'give', 'show', 'current', 'today', 'tomorrow', 
+      'weather', 'temperature', 'humidity', 'wind', 'the', 'this', 'that',
+      'is', 'are', 'was', 'will', 'can', 'should', 'would', 'could',
+      'please', 'thanks', 'thank', 'you', 'me', 'my', 'your', 'our'
+    ])
+    
+    // Common patterns to extract city names (works for any city)
     const patterns = [
-      /(?:in|at|for|の|で)\s*([A-Z][a-z]+)/i,
-      /([A-Z][a-z]+)\s*(?:の|で|の天気|weather)/i,
-      /([A-Z][a-z]+),?\s*(?:Japan|JP)/i
+      // "in [City]" or "in [City], [Country]" - most common pattern
+      /(?:in|at|for|の|で)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*(?:\s*,\s*[A-Z][a-zA-Z]+)?)/,
+      // "[City] weather" or "[City]の天気"
+      /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s*(?:の天気|weather|の|で)/,
+      // "[City], [Country]" pattern
+      /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*),\s*[A-Z][a-zA-Z]+/,
+      // "weather in [City]" pattern
+      /weather\s+(?:in|at|for)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)/i
     ]
     
+    // Try each pattern
     for (const pattern of patterns) {
       const match = message.match(pattern)
       if (match && match[1]) {
-        const potentialCity = match[1]
-        if (cityMap[potentialCity]) {
-          return cityMap[potentialCity]
+        let potentialCity = match[1].trim()
+        
+        // Remove country code if present (we'll let geocoding API handle it)
+        potentialCity = potentialCity.split(',')[0].trim()
+        
+        // Skip if it's a common word
+        if (skipWords.has(potentialCity.toLowerCase())) {
+          continue
         }
+        
+        // Skip if it's too short (likely not a city)
+        if (potentialCity.length < 2) {
+          continue
+        }
+        
+        // Skip if it contains numbers
+        if (/\d/.test(potentialCity)) {
+          continue
+        }
+        
+        // Skip single common words
+        if (potentialCity.split(/\s+/).length === 1 && potentialCity.length < 4) {
+          // Allow short city names like "NYC", "LA", etc.
+          if (!/^[A-Z]{2,4}$/.test(potentialCity)) {
+            continue
+          }
+        }
+        
+        // Return the potential city name (let the geocoding API validate it)
+        return potentialCity
       }
     }
     
