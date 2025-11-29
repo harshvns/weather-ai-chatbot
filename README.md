@@ -19,7 +19,7 @@ npm install
 2. Set up environment variables:
    Create a `.env.local` file in the root directory with the following:
    ```
-   GEMINI_API_KEY=AIzaSyBixQPIl--L1al_FEKJ75d-2Gus9YWD-Yo
+   GEMINI_API_KEY=your_gemini_api_key
    OPENWEATHER_API_KEY=your_openweather_api_key_here
    ```
    
